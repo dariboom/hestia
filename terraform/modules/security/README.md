@@ -11,6 +11,8 @@ This module holds the per-region security baseline for one `live/<env>/<region>`
   - a recorder of all supported resource types;
   - delivery to the audit bucket, encrypted with the audit key;
   - in `home_region`, an account aggregator over both regions.
+- **Audit store:** a WORM bucket `hestia-<env>-<rc>-audit-<account>` in every region, optionally replicated to the peer region's audit bucket.
+- **CloudTrail:** in `home_region` only, one multi-region trail `hestia-<env>-<rc>-trail` into the audit bucket, with a copy in CloudWatch Logs.
 - **Alerting:**
   - GuardDuty findings of severity 7 or higher, and Security Hub CRITICAL/HIGH findings, go through EventBridge to the SNS topic `hestia-<env>-<rc>-security-alerts`;
   - the topic is encrypted with the audit key and has an email subscription.
@@ -28,7 +30,7 @@ This module holds the per-region security baseline for one `live/<env>/<region>`
 - Every service statement is limited to `aws:SourceAccount` in `allowed_account_ids`.
 - Other modules take key ARNs from `kms_key_arns` and never edit a key policy. A principal they need is added here, as each module's README lists.
 - Roles that use a key come in through `key_usage_role_arns`, by key name.
-- The Config role is added to `audit` automatically.
+- The Config role and, when replication is on, the audit replication role are added to `audit` automatically.
 - The plan named three keys. This module has five, because the other modules expect separate `secrets` and `compute` keys.
 
 ## Home region and the other region
@@ -38,9 +40,30 @@ This module holds the per-region security baseline for one `live/<env>/<region>`
 | Security Hub finding aggregator (links the other region) | yes | no |
 | Config aggregator (both regions) | yes | no |
 | Config records global types (IAM) | yes | no, so each item is recorded once |
+| CloudTrail trail (multi-region, global service events) | yes | no; the home trail records it |
+| Audit bucket | yes | yes |
 | Security Hub alerts | own-region findings only | own-region findings only |
 
 The Security Hub alert rule filters on `Region`. Without that filter, findings copied to `home_region` by the aggregator would alert a second time.
+
+## Audit store and CloudTrail
+
+- **Audit bucket** (`modules/s3-bucket`):
+  - Encrypted with the audit key.
+  - Object Lock for `audit_retention_days` (default 3650) in `object_lock_mode`. prod requires COMPLIANCE and at least 3650 days; dev and staging may use GOVERNANCE.
+  - Moves to Glacier Instant Retrieval after 90 days and to Deep Archive after 365. Objects expire when their retention ends.
+  - Only `audit_bucket_admin_role_arns` may change its policy or ACLs.
+  - Records hold only pseudonymous IDs, so Object Lock does not conflict with GDPR erasure.
+- **Trail** (`home_region` only):
+  - Multi-region, with global service events and log file validation, encrypted with the audit key.
+  - Records management events, object reads and writes on `cloudtrail_data_event_bucket_arns`, and object reads on the audit bucket. Writes to the audit bucket are not recorded, because they are the trail's own deliveries.
+  - The bucket grants CloudTrail `GetBucketAcl` and `PutObject` under `AWSLogs/<account>/` only for this trail's ARN (`aws:SourceArn`).
+  - A copy goes to the CloudWatch log group `/aws/cloudtrail/hestia-<env>-<rc>-trail`, encrypted with the logs key and kept for `cloudtrail_log_retention_days`. The delivery role may only write log streams in that group.
+- **Replication** (`audit_replication_destination`, off when `null`):
+  - The role `hestia-<env>-<rc>-audit-replication` has the boundary and is assumable only by S3 from this account.
+  - It reads object versions with their Object Lock retention and legal hold, and replicates them into the destination bucket.
+  - `kms:Decrypt` on the audit key and `kms:Encrypt` on the destination key are each scoped by `kms:ViaService` and the S3 encryption context.
+  - Delete markers are not replicated. Replicas are stored as Glacier Instant Retrieval.
 
 ## Guarantees
 
@@ -54,10 +77,12 @@ The Security Hub alert rule filters on `Region`. Without that filter, findings c
   - It has the AWS managed `AWS_ConfigRole`.
   - Its inline policy only allows writes under `AWSLogs/<account>/Config/` in the audit bucket. It may use the audit key only through S3.
 - **Alerts topic:** only the two EventBridge rules of this stack may publish to it (`aws:SourceArn`).
+- **prod audit floors:** the variable validations that compare with `environment` run at plan time only; `terraform validate` skips them. `policies/audit.rego` rejects GOVERNANCE or retention below 3650 days in `live/prod/` statically.
 
 ## Dependencies outside this module
 
-- **Audit bucket:** the bucket `hestia-<env>-<rc>-audit-<account>` must exist before the Config delivery channel is created. It is created in Task 10.
+- **Peer audit bucket:** with replication on, the peer region's stack must list `arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-<env>-<rc>-audit-replication` in its `key_usage_role_arns["audit"]`. Without it, the destination key rejects the replicas.
+- **Access logs:** `audit_access_log_bucket` must be an SSE-S3 bucket, because S3 server access logs cannot be delivered to an SSE-KMS bucket.
 - **Alert email:** the SSM String parameter named by `alert_email_ssm_parameter_name` must exist. It is created out-of-band (`docs/secrets-handling.md`).
 - **Email confirmation:** the email subscription stays pending until the recipient confirms it.
 - **Organizations:** none. GuardDuty and Security Hub are enabled per account in each region, and `org/` holds SCPs only (Task 6).
@@ -75,6 +100,15 @@ module "security" {
   key_admin_role_arns            = ["arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-prod-kms-admin"]
   key_usage_role_arns = {
     compute = [module.eks.cluster_role_arn]
+    audit   = ["arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-prod-fr-audit-replication"] # the peer's replication role
+  }
+
+  audit_bucket_admin_role_arns      = ["arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-prod-admin"]
+  cloudtrail_data_event_bucket_arns = ["arn:aws:s3:::hestia-prod-de-backups-<AWS_ACCOUNT_ID>"]
+  audit_replication_destination = {
+    bucket_arn  = "arn:aws:s3:::hestia-prod-fr-audit-<AWS_ACCOUNT_ID>"
+    kms_key_arn = "arn:aws:kms:eu-west-3:<AWS_ACCOUNT_ID>:key/<KEY_ID>"
+    region      = "eu-west-3"
   }
 }
 ```
@@ -92,6 +126,13 @@ module "security" {
 | `alert_email_ssm_parameter_name` | string | required | SSM String under `/hestia/`. |
 | `key_admin_role_arns` | list(string) | `[]` | Administer every key; cannot use them. |
 | `key_usage_role_arns` | map(list(string)) | `{}` | Keys: `data`, `logs`, `audit`, `secrets`, `compute`. |
+| `audit_bucket_admin_role_arns` | list(string) | required | Only these may change the audit bucket policy or ACLs. |
+| `audit_access_log_bucket` | string | `null` | SSE-S3 bucket for server access logs. |
+| `audit_retention_days` | number | `3650` | Above 365; at least 3650 in prod. |
+| `object_lock_mode` | string | `COMPLIANCE` | `COMPLIANCE` or `GOVERNANCE`; `COMPLIANCE` in prod. |
+| `cloudtrail_data_event_bucket_arns` | list(string) | `[]` | S3 bucket ARNs whose object reads and writes are recorded. |
+| `cloudtrail_log_retention_days` | number | `365` | CloudWatch retention value, at most 400. |
+| `audit_replication_destination` | object | `null` | `{bucket_arn, kms_key_arn, region}`; key ARN, not alias; region in the allowlist and different from `region`. |
 
 ## Outputs
 
@@ -99,17 +140,22 @@ module "security" {
 |---|---|
 | `kms_key_arns` | Key ARNs by name. |
 | `security_alerts_topic_arn` | SNS topic for high-severity findings. |
+| `audit_bucket_arn` | This region's audit bucket. |
+| `cloudtrail_arn` | Trail ARN in `home_region`; `null` in the other region. |
 
 ## Static checks
 
-- **checkov:** 55 passed, 0 failed, 4 inline skips, each justified in the code:
+- **checkov:** 116 passed, 0 failed, 8 inline skips, each justified in the code:
   - `CKV_AWS_111`, `CKV_AWS_356` (in `modules/kms-key`): a key policy's `Resource "*"` means that key only.
+  - `CKV_AWS_144`, `CKV2_AWS_62`, `CKV_AWS_300` (in `modules/s3-bucket`): replication is set by the caller (here, `audit_replication_destination`), notifications by consumers, and every lifecycle rule aborts incomplete uploads.
   - `CKV2_AWS_3`: no Organizations GuardDuty administrator.
   - `CKV2_AWS_48`: global Config types are recorded in `home_region` only.
-- **conftest:** all policies pass. The managed `AWS_ConfigRole` attachment is the only non-inline policy.
+  - `CKV_AWS_252`: the trail has no SNS delivery topic; high-severity findings alert through EventBridge.
+- **conftest:** all policies pass, including `policies/audit.rego` (4 unit tests). The managed `AWS_ConfigRole` attachment is the only non-inline policy.
 - **gitleaks:** clean. The only account ID is the synthetic `000000000000` in scratch fixtures.
 - **`terraform validate`:** run against scratch roots.
   - Valid FR (dev) and DE (prod) cases pass.
-  - An invalid case is rejected with six variable errors: region `us-east-1`, environment `qa`, home region `eu-north-1`, key name `backups`, a full ruleset ARN as standard, and a parameter outside `/hestia/`.
+  - An invalid case is rejected with eight variable errors: region `us-east-1`, environment `qa`, home region `eu-north-1`, key name `backups`, a full ruleset ARN as standard, a parameter outside `/hestia/`, a bucket name instead of an ARN for data events, and a log retention of 3650.
+  - A valid FR case with a bucket name and a key alias as replication destination is rejected.
 - **tflint:** not run; it is not installed in this environment.
 - No `terraform plan` or `apply` has been run against this module.
