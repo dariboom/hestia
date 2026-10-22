@@ -88,3 +88,36 @@ variable "bucket_lifecycle" {
     error_message = "backups.expiration_days is required and must be <= 90 (GDPR erasure bound: deletions reach backups within 90 days)."
   }
 }
+
+variable "secrets_kms_key_arn" {
+  description = "Customer-managed KMS key for Secrets Manager containers (security module 'secrets' key)."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.secrets_kms_key_arn == null || can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.secrets_kms_key_arn))
+    error_message = "secrets_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "app_secret_names" {
+  description = "Secrets Manager containers to create as hestia/<env>/<rc>/app/<name>. Names only: values are injected by external CI/CD secret store."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for n in var.app_secret_names : can(regex("^[a-z0-9][a-z0-9-]{0,62}$", n))])
+    error_message = "app_secret_names must be lowercase kebab-case names (max 63 chars)."
+  }
+}
+
+variable "ssm_secure_parameter_names" {
+  description = "Existing SecureString parameter names (created out-of-band) to expose as ARNs for IAM grants. Never values."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for n in var.ssm_secure_parameter_names : startswith(n, "/hestia/${var.environment}/")])
+    error_message = "ssm_secure_parameter_names must start with /hestia/<environment>/."
+  }
+}

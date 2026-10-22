@@ -55,6 +55,8 @@ policy: guard
 
 secrets: guard
 	gitleaks detect --no-banner --config .gitleaks.toml --source .
+	@! grep -rn --include='*.tf' --exclude-dir=.terraform -E '(resource|data) "aws_secretsmanager_secret_version"' . || { echo "secret versions must not be managed by Terraform"; exit 1; }
+	@! grep -rlE --include='*.tf' --exclude-dir=.terraform 'type\s*=\s*"SecureString"' . | xargs -r grep -HnE '^\s*(value|insecure_value|value_wo)\s*=' | grep . || { echo "SecureString values must be created out-of-band"; exit 1; }
 
 python: guard
 	@for d in $$(find modules -type d -path '*/src/*' -mindepth 3 -maxdepth 4 2>/dev/null); do \

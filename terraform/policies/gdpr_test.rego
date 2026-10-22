@@ -120,6 +120,10 @@ test_hcl_secret_variable_default_denied if {
 	count(gdpr.deny) == 1 with input as hcl("live/dev/variables.tf", {"variable": {"api_token": {"default": "", "sensitive": true}}})
 }
 
+test_hcl_secret_reference_variable_default_allowed if {
+	count(gdpr.deny) == 0 with input as hcl("modules/data/variables.tf", {"variable": {"app_secret_names": {"default": []}, "secrets_kms_key_arn": {"default": null}}})
+}
+
 test_hcl_non_secret_variable_default_allowed if {
 	count(gdpr.deny) == 0 with input as hcl("live/dev/variables.tf", {"variable": {"retention_days": {"default": 30}}})
 }

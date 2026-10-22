@@ -8,6 +8,14 @@ import rego.v1
 
 secret_name := `(?i)(password|secret|token|api_?key)`
 
+# References (Secrets Manager ARNs, SSM parameter names) are the sanctioned way to point at secrets.
+secret_ref := `(?i)_(arns?|names?)$`
+
+secret_like(name) if {
+	regex.match(secret_name, name)
+	not regex.match(secret_ref, name)
+}
+
 after(rc) := rc.change.after
 
 unknown(rc, attr) if rc.change.after_unknown[attr] == true
@@ -130,14 +138,14 @@ deny contains msg if {
 	count(path) > 0
 	path[count(path) - 1] == "variables"
 	some name, v in vars
-	regex.match(secret_name, name)
+	secret_like(name)
 	"default" in object.keys(v)
 	msg := sprintf("gdpr: variable %s looks secret and must not have a default", [name])
 }
 
 deny contains msg if {
 	some v in lib.labeled("variable")
-	regex.match(secret_name, v.name)
+	secret_like(v.name)
 	"default" in object.keys(v.body)
 	msg := sprintf("gdpr: %s: variable %s looks secret and must not have a default", [v.path, v.name])
 }
