@@ -35,6 +35,20 @@ variable "home_region" {
   }
 }
 
+variable "securityhub_standards" {
+  description = "Security Hub standards to enable, as the part of the standards ARN after 'standards/'."
+  type        = list(string)
+  default = [
+    "aws-foundational-security-best-practices/v/1.0.0",
+    "cis-aws-foundations-benchmark/v/3.0.0",
+  ]
+
+  validation {
+    condition     = alltrue([for s in var.securityhub_standards : can(regex("^[a-z0-9-]+/v/[0-9.]+$", s))])
+    error_message = "securityhub_standards entries look like aws-foundational-security-best-practices/v/1.0.0."
+  }
+}
+
 variable "allowed_account_ids" {
   description = "AWS account IDs whose principals may use the keys. Supplied at run time (TF_VAR_account_id); never committed."
   type        = list(string)
