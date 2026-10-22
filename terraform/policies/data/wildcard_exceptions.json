@@ -1,0 +1,16 @@
+{
+  "wildcard_exceptions": [
+    {
+      "module": "modules/kms-key",
+      "resource_type": "aws_iam_policy_document",
+      "sids": [
+        "RootKeyAdministration",
+        "KeyAdministrators",
+        "KeyUsage",
+        "KeyUsageGrantsForAwsResources",
+        "Service*"
+      ],
+      "justification": "In a KMS key policy, Resource \"*\" refers to the key the policy is attached to; no other resource can be named."
+    }
+  ]
+}

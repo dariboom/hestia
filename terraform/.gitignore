@@ -21,3 +21,6 @@ __pycache__/
 *.pyc
 dist/
 *.zip
+
+# Provider lock files are pinned only in live roots, not in reusable modules.
+modules/**/.terraform.lock.hcl
