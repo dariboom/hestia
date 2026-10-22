@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "hestia",
+  "project_id": "6cbc34cd-9005-4c24-a29a-88b0d9625e03"
+}
