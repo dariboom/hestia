@@ -1,8 +1,8 @@
 {
   "wildcard_exceptions": [
     {
-      "module": "modules/kms-key",
-      "resource_type": "aws_iam_policy_document",
+      "path": "modules/kms-key/main.tf",
+      "address": "data.aws_iam_policy_document.this",
       "sids": [
         "RootKeyAdministration",
         "KeyAdministrators",

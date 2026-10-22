@@ -17,13 +17,16 @@ changes contains rc if {
 	not rc.change.actions == ["delete"]
 }
 
+# conftest's hcl2 parser emits a single block as an object and repeated blocks as an array;
+# always iterate through as_list().
+
 # Two-label HCL blocks (resource, data): {path, type, name, body}.
 blocks(kind) := {b |
 	hcl_mode
 	some f in input
 	some type, named in f.contents[kind]
 	some name, bodies in named
-	some body in bodies
+	some body in as_list(bodies)
 	b := {"path": f.path, "type": type, "name": name, "body": body}
 }
 
@@ -32,13 +35,13 @@ labeled(kind) := {b |
 	hcl_mode
 	some f in input
 	some name, bodies in f.contents[kind]
-	some body in bodies
+	some body in as_list(bodies)
 	b := {"path": f.path, "name": name, "body": body}
 }
 
 as_list(x) := x if is_array(x)
 
-as_list(x) := [x] if is_string(x)
+as_list(x) := [x] if not is_array(x)
 
 # Literal string (not an interpolated expression) in hcl2json output.
 literal(x) if {

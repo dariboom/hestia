@@ -37,9 +37,12 @@ lint: guard
 checkov: guard
 	checkov --config-file .checkov.yaml -d .
 
+# Only .rego files go to opa test: loading policies/ would also pull fixtures/ and data/ JSON into data.
+# --combine gives rules the file path, which wildcard exceptions are keyed on (conftest.toml adds policies/data).
 policy: guard
-	opa test policies/ -v
-	conftest test --parser hcl2 $$(find modules live bootstrap org -name '*.tf' -not -path '*/.terraform/*' 2>/dev/null)
+	opa check --strict policies/*.rego
+	opa test policies/*.rego -v
+	conftest test --combine --parser hcl2 $$(find modules live bootstrap org -name '*.tf' -not -path '*/.terraform/*' 2>/dev/null)
 
 secrets: guard
 	gitleaks detect --no-banner --config .gitleaks.toml --source .
