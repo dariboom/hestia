@@ -16,7 +16,7 @@ CloudFront is off by default (ADR-005). The global edge (`modules/edge`, T16) po
   - Port 80 serves no content. It only answers `301` to HTTPS.
   - The ALB drops requests with invalid header fields.
   - Traffic to targets is re-encrypted: the target group and its health check use HTTPS on `target_port`.
-- **Certificate:** ACM, DNS-validated through records in `hosted_zone_id`. The listener waits for validation. No private key is handled by Terraform.
+- **Certificate:** ACM for `domain_name` plus `subject_alternative_names`, DNS-validated through records in `hosted_zone_id`. One ALB serves both `api.<domain>` and `portal.<domain>` (T16 routes both to it). The listener waits for validation. No private key is handled by Terraform.
 - **Security group:** ingress is 443 and 80 from anywhere, the only two public ports. Egress is only `target_port` to the VPC CIDR, because targets are pod IPs.
 - **Deletion protection:** on when `environment = "prod"`. Dev and staging stay disposable.
 - **WAF (REGIONAL), associated with the ALB:**
@@ -56,6 +56,7 @@ module "edge_regional" {
   vpc_id            = module.network.vpc_id
   public_subnet_ids = module.network.public_subnet_ids
   domain_name       = "api.example.eu"
+  subject_alternative_names = ["portal.example.eu"]
   hosted_zone_id    = "<HOSTED_ZONE_ID>"
   access_log_bucket = "hestia-prod-de-alb-logs-<AWS_ACCOUNT_ID>"
   log_kms_key_arn   = module.kms_logs.key_arn # modules/kms-key
@@ -87,6 +88,7 @@ spec:
 | `public_subnet_ids` | list(string) | required | At least two, from the public tier. |
 | `domain_name` | string | required | Lower-case DNS name the certificate covers. |
 | `hosted_zone_id` | string | required | Zone for the ACM validation records. |
+| `subject_alternative_names` | list(string) | `[]` | Extra certificate hostnames, same zone. |
 | `access_log_bucket` | string | required | Existing SSE-S3 bucket name; see above. |
 | `log_kms_key_arn` | string | required | Key ARN, not an alias, for the WAF log group. |
 | `log_retention_days` | number | `365` | CloudWatch value ≤ 400. |

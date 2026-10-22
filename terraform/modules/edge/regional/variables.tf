@@ -49,6 +49,17 @@ variable "domain_name" {
   }
 }
 
+variable "subject_alternative_names" {
+  description = "Extra hostnames on the certificate, e.g. portal.<domain> when api.<domain> is domain_name; validated in the same hosted_zone_id."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for n in var.subject_alternative_names : can(regex("^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$", n))])
+    error_message = "subject_alternative_names must be lower-case DNS names without a trailing dot."
+  }
+}
+
 variable "hosted_zone_id" {
   description = "Route 53 hosted zone that holds domain_name; used only for the ACM DNS validation records."
   type        = string
