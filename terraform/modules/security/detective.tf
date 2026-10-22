@@ -18,7 +18,7 @@ data "aws_region" "current" {}
 
 resource "aws_guardduty_detector" "this" {
   #checkov:skip=CKV2_AWS_3:Enabled per account in each allowed region by this module; there is no Organizations GuardDuty administrator (org/ holds SCPs only, Task 6).
-  enable                      = true
+  enable                       = true
   finding_publishing_frequency = "FIFTEEN_MINUTES"
   tags                         = var.tags
 
