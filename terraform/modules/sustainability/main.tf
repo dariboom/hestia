@@ -114,7 +114,7 @@ resource "aws_lambda_function" "carbon_signal" {
   #checkov:skip=CKV_AWS_117:Runs outside the VPC by design (ADR-008): it only calls the public ENTSO-E API and regional AWS APIs and touches no VPC data, so a NAT path would add cost and nothing else.
   #checkov:skip=CKV_AWS_116:Async failures are retried by EventBridge Scheduler and the next run supersedes a missed one 15 minutes later; a DLQ would hold stale signals.
   #checkov:skip=CKV_AWS_50:X-Ray needs xray:PutTraceSegments on Resource "*"; errors and the CloudWatch metric already cover a 15-minute batch job.
-  #checkov:skip=CKV_AWS_272:Code is built from this repository by Terraform, not uploaded by a third party; code signing adds no provenance here.
+  #checkov:skip=CKV_AWS_272:Code is zipped from this repository by CI, not uploaded by a third party; code signing adds no provenance here.
   function_name                  = local.function_name
   description                    = "Grid carbon intensity for DE-LU and FR (ADR-008)"
   role                           = aws_iam_role.carbon_signal.arn
