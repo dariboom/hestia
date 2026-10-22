@@ -90,3 +90,44 @@ variable "peer_vpc_cidr" {
     error_message = "peer_vpc_cidr must be a valid CIDR or null."
   }
 }
+
+variable "interface_endpoints" {
+  description = "Interface endpoint service suffixes (com.amazonaws.<region>.<suffix>) placed in the private subnets."
+  type        = list(string)
+  default     = ["ecr.api", "ecr.dkr", "sts", "logs", "kms", "secretsmanager", "ssm", "ec2", "elasticloadbalancing", "eks", "firehose"]
+}
+
+variable "flow_log_retention_days" {
+  description = "Days flow logs are kept before expiry (also the GDPR erasure bound for IP metadata)."
+  type        = number
+
+  validation {
+    condition     = var.flow_log_retention_days >= 1 && var.flow_log_retention_days <= 400
+    error_message = "flow_log_retention_days must be between 1 and 400."
+  }
+
+  validation {
+    condition     = var.environment != "prod" || var.flow_log_retention_days >= 90
+    error_message = "prod requires flow_log_retention_days >= 90."
+  }
+}
+
+variable "flow_log_bucket_kms_key_arn" {
+  description = "KMS key for the flow-log bucket (security module 'logs' key); its policy must allow delivery.logs.amazonaws.com."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.flow_log_bucket_kms_key_arn))
+    error_message = "flow_log_bucket_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "flow_log_bucket_admin_role_arns" {
+  description = "Principals allowed to change the flow-log bucket policy (passed to modules/s3-bucket)."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.flow_log_bucket_admin_role_arns) > 0
+    error_message = "At least one admin role ARN is required."
+  }
+}

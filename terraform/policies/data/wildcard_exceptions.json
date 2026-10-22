@@ -19,6 +19,12 @@
       "justification": "tf-deploy creates resources whose ARNs do not exist before apply, so it needs service-level actions. Blast radius is capped by the eu-central-1/eu-west-3/us-east-1 region condition, IAM scoped to hestia-* names, the mandatory permissions boundary on new roles, explicit audit/CI-identity denies, and the org SCPs (ADR-004, ADR-007)."
     },
     {
+      "path": "modules/network/endpoints.tf",
+      "address": "data.aws_iam_policy_document.s3_endpoint",
+      "sids": ["AccountBucketsOnly"],
+      "justification": "A VPC endpoint policy cannot enumerate buckets created later; aws:ResourceAccount restricts it to this account's buckets, which is the anti-exfiltration control. IAM and bucket policies still decide who may do what."
+    },
+    {
       "address_pattern": "^aws_iam_policy\\.boundary$",
       "sids": ["ManageHestiaServices", "ManageHestiaIam"],
       "justification": "Plan-time view of the bootstrap permissions boundary; see the bootstrap/iam.tf entry."

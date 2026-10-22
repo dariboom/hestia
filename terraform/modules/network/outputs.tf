@@ -32,3 +32,13 @@ output "isolated_route_table_ids" {
   description = "Isolated route table IDs; network-peering adds peer routes here."
   value       = [aws_route_table.isolated.id]
 }
+
+output "endpoint_security_group_id" {
+  description = "Security group on the interface endpoints."
+  value       = aws_security_group.endpoints.id
+}
+
+output "flow_log_bucket_arn" {
+  description = "Flow-log bucket ARN (Athena / security tooling)."
+  value       = module.flow_log_bucket.arn
+}
