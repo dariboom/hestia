@@ -27,3 +27,8 @@ output "node_role_arn" {
   description = "Worker-node IAM role ARN."
   value       = aws_iam_role.node.arn
 }
+
+output "cluster_autoscaler_role_arn" {
+  description = "IRSA role for the Cluster Autoscaler Helm release (kube-system/cluster-autoscaler)."
+  value       = module.cluster_autoscaler_irsa.role_arn
+}

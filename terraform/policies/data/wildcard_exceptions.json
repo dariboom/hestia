@@ -25,6 +25,17 @@
       "justification": "A VPC endpoint policy cannot enumerate buckets created later; aws:ResourceAccount restricts it to this account's buckets, which is the anti-exfiltration control. IAM and bucket policies still decide who may do what."
     },
     {
+      "path": "modules/compute/addons.tf",
+      "address": "data.aws_iam_policy_document.cluster_autoscaler",
+      "sids": ["AutoscalingDescribe"],
+      "justification": "AutoScaling and EC2 Describe*/GetInstanceTypesFromInstanceRequirements calls do not support resource-level permissions; AWS requires Resource \"*\". They are read-only; the mutating statement is scoped to ASGs tagged k8s.io/cluster-autoscaler/<cluster>=owned."
+    },
+    {
+      "address_pattern": "module\\.cluster_autoscaler_irsa\\.aws_iam_role_policy\\.this(\\[0\\])?$",
+      "sids": ["AutoscalingDescribe"],
+      "justification": "Plan-time view of the Cluster Autoscaler policy; see the modules/compute/addons.tf entry."
+    },
+    {
       "address_pattern": "^aws_iam_policy\\.boundary$",
       "sids": ["ManageHestiaServices", "ManageHestiaIam"],
       "justification": "Plan-time view of the bootstrap permissions boundary; see the bootstrap/iam.tf entry."
