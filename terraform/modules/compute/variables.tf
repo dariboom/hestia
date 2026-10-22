@@ -85,3 +85,42 @@ variable "log_retention_days" {
     error_message = "log_retention_days must be a CloudWatch retention value <= 400."
   }
 }
+
+variable "node_groups" {
+  description = "Managed node groups keyed by name."
+  type = map(object({
+    instance_types = list(string)
+    ami_type       = optional(string, "AL2023_x86_64_STANDARD")
+    capacity_type  = optional(string, "ON_DEMAND")
+    disk_size      = optional(number, 50)
+    min_size       = number
+    max_size       = number
+    desired_size   = number
+    labels         = optional(map(string), {})
+    taints = optional(list(object({
+      key    = string
+      value  = optional(string)
+      effect = string
+    })), [])
+  }))
+
+  validation {
+    condition     = length(var.node_groups) > 0 && alltrue([for k, g in var.node_groups : can(regex("^[a-z0-9-]{1,40}$", k))])
+    error_message = "node_groups needs at least one group; keys are lowercase [a-z0-9-], at most 40 chars."
+  }
+
+  validation {
+    condition     = alltrue([for g in var.node_groups : 0 <= g.min_size && g.min_size <= g.desired_size && g.desired_size <= g.max_size && g.max_size <= 50])
+    error_message = "Each node group needs 0 <= min_size <= desired_size <= max_size <= 50."
+  }
+
+  validation {
+    condition     = alltrue([for g in var.node_groups : contains(["ON_DEMAND", "SPOT"], g.capacity_type) && length(g.instance_types) > 0 && g.disk_size >= 20])
+    error_message = "capacity_type must be ON_DEMAND or SPOT, instance_types non-empty, disk_size >= 20 GiB."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for g in var.node_groups : [for t in g.taints : contains(["NO_SCHEDULE", "NO_EXECUTE", "PREFER_NO_SCHEDULE"], t.effect)]]))
+    error_message = "taint effect must be NO_SCHEDULE, NO_EXECUTE or PREFER_NO_SCHEDULE."
+  }
+}
