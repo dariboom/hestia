@@ -42,6 +42,8 @@ locals {
 
 # In a key policy, Resource "*" means "this key" (registered in policies/data/wildcard_exceptions.json).
 data "aws_iam_policy_document" "this" {
+  #checkov:skip=CKV_AWS_111:Key policy: Resource "*" is this key only (policies/data/wildcard_exceptions.json); principals and conditions constrain writes.
+  #checkov:skip=CKV_AWS_356:Key policy: Resource "*" is this key only and cannot be narrowed (policies/data/wildcard_exceptions.json).
   # Account root keeps the key recoverable if every admin role is deleted; administrative
   # actions only, never Encrypt/Decrypt. Deletion is additionally blocked by SCP in prod (ADR-007).
   statement {
