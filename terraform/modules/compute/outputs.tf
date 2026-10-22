@@ -32,3 +32,13 @@ output "cluster_autoscaler_role_arn" {
   description = "IRSA role for the Cluster Autoscaler Helm release (kube-system/cluster-autoscaler)."
   value       = module.cluster_autoscaler_irsa.role_arn
 }
+
+output "log_archive_bucket_arn" {
+  description = "In-region S3 archive of container and control-plane logs."
+  value       = module.log_archive.arn
+}
+
+output "log_firehose_arn" {
+  description = "Firehose stream that writes the log archive."
+  value       = aws_kinesis_firehose_delivery_stream.logs.arn
+}

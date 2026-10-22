@@ -124,3 +124,32 @@ variable "node_groups" {
     error_message = "taint effect must be NO_SCHEDULE, NO_EXECUTE or PREFER_NO_SCHEDULE."
   }
 }
+
+variable "bucket_admin_role_arns" {
+  description = "Principals allowed to change the log archive bucket policy (normally the tf-deploy role)."
+  type        = list(string)
+}
+
+variable "log_archive_kms_key_arn" {
+  description = "KMS key for the log archive bucket and the Firehose stream (security module 'logs' key)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.log_archive_kms_key_arn))
+    error_message = "log_archive_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "log_archive_lifecycle" {
+  description = "Log archive lifecycle: Glacier IR after transition_days, deleted after expiration_days. Logs hold personal data, so expiration is the GDPR erasure bound."
+  type = object({
+    transition_days = optional(number, 30)
+    expiration_days = optional(number, 400)
+  })
+  default = {}
+
+  validation {
+    condition     = var.log_archive_lifecycle.transition_days >= 1 && var.log_archive_lifecycle.transition_days < var.log_archive_lifecycle.expiration_days && var.log_archive_lifecycle.expiration_days <= 400
+    error_message = "log_archive_lifecycle needs 1 <= transition_days < expiration_days <= 400."
+  }
+}
