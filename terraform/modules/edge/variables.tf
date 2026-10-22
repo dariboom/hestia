@@ -82,3 +82,88 @@ variable "health_check_path" {
     error_message = "health_check_path must start with /."
   }
 }
+
+variable "enable_cloudfront" {
+  description = "Serve the anonymized dashboard through CloudFront at dashboard.<domain>; the only switch that creates us-east-1 resources (ADR-005)."
+  type        = bool
+  default     = false
+}
+
+variable "dashboard_origin" {
+  description = "Existing S3 bucket (modules/s3-bucket) holding the anonymized dashboard, in an allowed region. Required when enable_cloudfront; give it the dashboard_origin_policy_json output."
+  type = object({
+    bucket_arn                  = string
+    bucket_regional_domain_name = string
+  })
+  default = null
+
+  validation {
+    condition     = !var.enable_cloudfront || var.dashboard_origin != null
+    error_message = "dashboard_origin is required when enable_cloudfront = true."
+  }
+
+  validation {
+    condition     = var.dashboard_origin == null || can(regex("\\.s3\\.(eu-central-1|eu-west-3)\\.amazonaws\\.com$", var.dashboard_origin.bucket_regional_domain_name))
+    error_message = "dashboard_origin must be an S3 bucket in eu-central-1 or eu-west-3."
+  }
+}
+
+variable "cloudfront_origin_paths" {
+  description = "S3 key prefixes CloudFront may read (anonymized dashboard only); everything else in the bucket stays denied. The first one holds index.html."
+  type        = list(string)
+  default     = ["/dashboard"]
+
+  validation {
+    condition     = length(var.cloudfront_origin_paths) > 0 && alltrue([for p in var.cloudfront_origin_paths : can(regex("^(/[a-z0-9][a-z0-9_-]*)+$", p))])
+    error_message = "cloudfront_origin_paths must be non-empty prefixes like /dashboard (no wildcards, no trailing slash)."
+  }
+}
+
+variable "cloudfront_log_bucket" {
+  description = "Name of the existing eu-central-1 (DE) bucket that receives CloudFront standard logs. Required when enable_cloudfront."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.enable_cloudfront || var.cloudfront_log_bucket != null
+    error_message = "cloudfront_log_bucket is required when enable_cloudfront = true."
+  }
+}
+
+variable "cloudfront_geo_allowlist" {
+  description = "ISO 3166-1 alpha-2 countries CloudFront serves; default EU27 plus EEA (IS, LI, NO)."
+  type        = list(string)
+  default = [
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    "IS", "LI", "NO",
+  ]
+
+  validation {
+    condition     = length(var.cloudfront_geo_allowlist) > 0 && alltrue([for c in var.cloudfront_geo_allowlist : can(regex("^[A-Z]{2}$", c))])
+    error_message = "cloudfront_geo_allowlist must be a non-empty list of upper-case two-letter country codes."
+  }
+}
+
+variable "waf_rule_config" {
+  description = "CloudFront WAF: AWS managed rule groups in order (priority = index, default block mode) and the per-IP 5-minute rate limit."
+  type = object({
+    managed_rule_groups = optional(list(string), [
+      "AWSManagedRulesCommonRuleSet",
+      "AWSManagedRulesKnownBadInputsRuleSet",
+      "AWSManagedRulesAmazonIpReputationList",
+    ])
+    rate_limit_per_5min = optional(number, 2000)
+  })
+  default = {}
+
+  validation {
+    condition     = length(var.waf_rule_config.managed_rule_groups) > 0 && alltrue([for g in var.waf_rule_config.managed_rule_groups : can(regex("^AWSManagedRules[A-Za-z0-9]+$", g))])
+    error_message = "waf_rule_config.managed_rule_groups must be a non-empty list of AWSManagedRules* group names."
+  }
+
+  validation {
+    condition     = var.waf_rule_config.rate_limit_per_5min >= 100 && var.waf_rule_config.rate_limit_per_5min <= 2000000000
+    error_message = "waf_rule_config.rate_limit_per_5min must be between 100 and 2000000000."
+  }
+}

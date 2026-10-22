@@ -29,7 +29,8 @@ resource "aws_route53_zone" "private" {
 resource "aws_route53_zone" "public" {
   #checkov:skip=CKV2_AWS_39:Public query logging must target a us-east-1 log group, which ADR-005 does not allow.
   #checkov:skip=CKV2_AWS_38:DNSSEC needs an asymmetric KMS key in us-east-1, outside the ADR-005 exceptions.
-  count = var.enable_public_ingress ? 1 : 0
+  # CloudFront also needs it for the dashboard certificate and alias.
+  count = var.enable_public_ingress || var.enable_cloudfront ? 1 : 0
 
   name    = var.domain_name
   comment = "${local.name_prefix} public names"
