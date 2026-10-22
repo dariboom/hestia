@@ -8,6 +8,9 @@ SHELL := /bin/bash
 TF ?= terraform
 # Every directory that holds .tf files, excluding provider caches.
 TF_DIRS := $(shell find . -name '*.tf' -not -path '*/.terraform/*' -printf '%h\n' | sort -u)
+# Modules with configuration_aliases can't be validated standalone; their examples/ roots cover them.
+ALIAS_DIRS := $(shell grep -rl --include='*.tf' --exclude-dir=.terraform configuration_aliases . | xargs -r -n1 dirname | sort -u)
+VALIDATE_DIRS := $(filter-out $(ALIAS_DIRS),$(TF_DIRS))
 
 FORBIDDEN := plan|apply|destroy|import|state|refresh|test|console|taint|untaint|force-unlock
 
@@ -25,7 +28,7 @@ fmt: guard
 	$(TF) fmt -check -recursive -diff .
 
 validate: guard
-	@for d in $(TF_DIRS); do \
+	@for d in $(VALIDATE_DIRS); do \
 	  echo "== validate $$d"; \
 	  $(TF) -chdir=$$d init -backend=false -input=false -no-color >/dev/null; \
 	  $(TF) -chdir=$$d validate -no-color; \
