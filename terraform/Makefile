@@ -4,6 +4,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
+# Roots require Terraform >= 1.10 (S3 lockfiles); override TF with a 1.10+ binary or the hashicorp/terraform image if needed.
 TF ?= terraform
 # Every directory that holds .tf files, excluding provider caches.
 TF_DIRS := $(shell find . -name '*.tf' -not -path '*/.terraform/*' -printf '%h\n' | sort -u)

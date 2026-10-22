@@ -9,6 +9,8 @@ crash.log
 crash.*.log
 *.auto.tfvars.json
 backend.hcl
+# Filled in locally during state migration (bootstrap/README.md).
+bootstrap/backend.tf
 override.tf
 override.tf.json
 *_override.tf
