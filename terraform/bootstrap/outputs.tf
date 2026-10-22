@@ -13,3 +13,23 @@ output "state_kms_key_arns" {
     fr = module.state_kms_fr.key_arn
   }
 }
+
+output "github_oidc_provider_arn" {
+  description = "GitHub Actions OIDC provider ARN."
+  value       = aws_iam_openid_connect_provider.github.arn
+}
+
+output "tf_deploy_role_arn" {
+  description = "Role assumed by CI plan/apply jobs in the GitHub environment named after var.environment."
+  value       = aws_iam_role.deploy.arn
+}
+
+output "tf_readonly_role_arn" {
+  description = "Role assumed by CI jobs that only read state (GitHub environment <env>-readonly)."
+  value       = aws_iam_role.readonly.arn
+}
+
+output "permissions_boundary_arn" {
+  description = "Boundary every role created by CI must carry (permissions_boundary argument)."
+  value       = aws_iam_policy.boundary.arn
+}

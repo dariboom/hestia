@@ -39,3 +39,23 @@ variable "admin_role_arns" {
     error_message = "admin_role_arns must contain at least one concrete IAM role ARN (no wildcards)."
   }
 }
+
+variable "github_org" {
+  description = "GitHub organisation that owns the infrastructure repository (OIDC subject)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+$", var.github_org))
+    error_message = "github_org must be a literal name (no wildcards)."
+  }
+}
+
+variable "github_repo" {
+  description = "Infrastructure repository name (OIDC subject)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+$", var.github_repo))
+    error_message = "github_repo must be a literal name (no wildcards)."
+  }
+}

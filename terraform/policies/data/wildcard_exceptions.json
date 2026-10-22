@@ -11,6 +11,17 @@
         "Service*"
       ],
       "justification": "In a KMS key policy, Resource \"*\" refers to the key the policy is attached to; no other resource can be named."
+    },
+    {
+      "path": "bootstrap/iam.tf",
+      "address": "data.aws_iam_policy_document.boundary",
+      "sids": ["ManageHestiaServices", "ManageHestiaIam"],
+      "justification": "tf-deploy creates resources whose ARNs do not exist before apply, so it needs service-level actions. Blast radius is capped by the eu-central-1/eu-west-3/us-east-1 region condition, IAM scoped to hestia-* names, the mandatory permissions boundary on new roles, explicit audit/CI-identity denies, and the org SCPs (ADR-004, ADR-007)."
+    },
+    {
+      "address_pattern": "^aws_iam_policy\\.boundary$",
+      "sids": ["ManageHestiaServices", "ManageHestiaIam"],
+      "justification": "Plan-time view of the bootstrap permissions boundary; see the bootstrap/iam.tf entry."
     }
   ]
 }
