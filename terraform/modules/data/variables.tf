@@ -152,3 +152,113 @@ variable "replication_destination" {
     error_message = "replication_destination is required when enable_cross_region_replication is true, and its region must differ from var.region."
   }
 }
+
+# --- RDS PostgreSQL (rds.tf). db_role = null creates no database.
+
+variable "db_role" {
+  description = "\"primary\" (active region), \"replica\" (cross-region read replica) or null for no database."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.db_role == null || contains(["primary", "replica"], coalesce(var.db_role, "-"))
+    error_message = "db_role must be \"primary\", \"replica\" or null."
+  }
+}
+
+variable "db_source_db_arn" {
+  description = "ARN of the primary DB instance; required iff db_role = \"replica\"."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.db_source_db_arn == null || can(regex("^arn:aws[a-z-]*:rds:(eu-central-1|eu-west-3):[0-9]{12}:db:", var.db_source_db_arn))
+    error_message = "db_source_db_arn must be an RDS DB instance ARN in an allowed EU region."
+  }
+}
+
+variable "db_engine_version" {
+  description = "PostgreSQL version; the major version selects the parameter group family."
+  type        = string
+  default     = "17"
+}
+
+variable "db_instance_class" {
+  description = "DB instance class."
+  type        = string
+  default     = "db.m7g.large"
+}
+
+variable "db_allocated_storage" {
+  description = "Initial gp3 storage in GiB (primary only; replicas inherit it)."
+  type        = number
+  default     = 100
+}
+
+variable "db_max_allocated_storage" {
+  description = "Storage autoscaling ceiling in GiB."
+  type        = number
+  default     = 500
+
+  validation {
+    condition     = var.db_max_allocated_storage >= var.db_allocated_storage
+    error_message = "db_max_allocated_storage must be >= db_allocated_storage."
+  }
+}
+
+variable "db_backup_retention_days" {
+  description = "Automated backup retention: at least 7 days, at least 14 in prod, at most 35 (RDS limit)."
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = var.db_backup_retention_days >= (var.environment == "prod" ? 14 : 7) && var.db_backup_retention_days <= 35
+    error_message = "db_backup_retention_days must be 7-35 (14-35 in prod)."
+  }
+}
+
+variable "db_vpc_id" {
+  description = "VPC for the database security group."
+  type        = string
+  default     = null
+}
+
+variable "db_subnet_ids" {
+  description = "Isolated subnet IDs (modules/network isolated tier), at least two AZs."
+  type        = list(string)
+  default     = []
+}
+
+variable "db_allowed_security_group_ids" {
+  description = "Security groups allowed to reach PostgreSQL on 5432 (EKS nodes / pods)."
+  type        = list(string)
+  default     = []
+}
+
+variable "db_peer_cidr_blocks" {
+  description = "Peer-region VPC CIDRs allowed on 5432 (via modules/network-peering)."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for c in var.db_peer_cidr_blocks : can(cidrhost(c, 0)) && !startswith(c, "0.0.0.0")])
+    error_message = "db_peer_cidr_blocks must be valid private CIDRs, never 0.0.0.0/x."
+  }
+}
+
+variable "db_log_kms_key_arn" {
+  description = "KMS key for the RDS CloudWatch log groups; its policy must allow logs.<region>.amazonaws.com (security module 'logs' key)."
+  type        = string
+  default     = null
+}
+
+variable "db_log_retention_days" {
+  description = "Retention of RDS log exports; capped at 400 days (GDPR erasure bound for log personal data)."
+  type        = number
+  default     = 365
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400], var.db_log_retention_days)
+    error_message = "db_log_retention_days must be a CloudWatch retention value <= 400."
+  }
+}

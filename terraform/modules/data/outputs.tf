@@ -17,3 +17,23 @@ output "replication_role_arn" {
   description = "Replication role ARN (null when replication is disabled)."
   value       = one(aws_iam_role.replication[*].arn)
 }
+
+output "db_instance_arn" {
+  description = "DB instance ARN (null without a database); a replica stack takes the primary's as db_source_db_arn."
+  value       = one(aws_db_instance.db[*].arn)
+}
+
+output "db_endpoint" {
+  description = "DB endpoint host:port (null without a database)."
+  value       = one(aws_db_instance.db[*].endpoint)
+}
+
+output "master_user_secret_arn" {
+  description = "ARN of the RDS-managed master user secret (primary only; ARN, never the value)."
+  value       = try(aws_db_instance.db[0].master_user_secret[0].secret_arn, null)
+}
+
+output "db_security_group_id" {
+  description = "Database security group ID (null without a database)."
+  value       = one(aws_security_group.db[*].id)
+}
