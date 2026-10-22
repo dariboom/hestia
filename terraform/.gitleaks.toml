@@ -1,0 +1,15 @@
+title = "hestia gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholders and synthetic fixture IDs only"
+regexes = [
+  '''<AWS_ACCOUNT_ID>''',
+  '''<DB_PASSWORD_SECRET_ARN>''',
+  '''<APP_API_KEY_SECRET_ARN>''',
+  '''<SSM_PARAMETER_NAME>''',
+  '''<STATE_BUCKET_NAME>''',
+  '''000000000000''',
+]

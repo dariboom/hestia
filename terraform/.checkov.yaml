@@ -1,0 +1,10 @@
+# Static IaC scan only; checkov never contacts AWS here.
+# Every skip must carry a justification comment and an ADR or file reference.
+framework:
+  - terraform
+compact: true
+quiet: true
+download-external-modules: false
+skip-path:
+  - .terraform
+skip-check: []

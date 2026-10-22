@@ -1,0 +1,4 @@
+# conftest reads flags from this file. Policies are in ./policies (see ADR-007).
+policy = "policies"
+data = ["policies/data"]
+all-namespaces = true

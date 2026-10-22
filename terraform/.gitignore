@@ -1,0 +1,23 @@
+# State, plans and backend config must never be committed (ADR-004, secrets policy).
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.json
+tfplan
+.terraform/
+crash.log
+crash.*.log
+*.auto.tfvars.json
+backend.hcl
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Python (Lambda sources)
+__pycache__/
+*.pyc
+dist/
+*.zip
