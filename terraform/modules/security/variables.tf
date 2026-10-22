@@ -145,3 +145,28 @@ variable "cloudtrail_log_retention_days" {
     error_message = "cloudtrail_log_retention_days must be a CloudWatch retention value <= 400."
   }
 }
+
+variable "audit_replication_destination" {
+  description = "Peer-region audit bucket and its KMS key to replicate the audit bucket into, or null for no replication."
+  type = object({
+    bucket_arn  = string
+    kms_key_arn = string
+    region      = string
+  })
+  default = null
+
+  validation {
+    # || does not short-circuit in HCL, hence try().
+    condition = var.audit_replication_destination == null || try(
+      can(regex("^arn:aws[a-z-]*:s3:::[a-z0-9.-]+$", var.audit_replication_destination.bucket_arn)) &&
+      can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.audit_replication_destination.kms_key_arn)) &&
+      contains(["eu-central-1", "eu-west-3"], var.audit_replication_destination.region),
+    false)
+    error_message = "audit_replication_destination needs an S3 bucket ARN, a KMS key ARN (not an alias) and an EU region in the allowlist (ADR-005)."
+  }
+
+  validation {
+    condition     = var.audit_replication_destination == null ? true : var.audit_replication_destination.region != var.region
+    error_message = "audit_replication_destination.region must differ from var.region."
+  }
+}

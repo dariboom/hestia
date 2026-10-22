@@ -66,6 +66,6 @@ module "kms" {
   tags                = var.tags
   allowed_account_ids = var.allowed_account_ids
   admin_role_arns     = var.key_admin_role_arns
-  usage_role_arns     = concat(lookup(var.key_usage_role_arns, each.key, []), each.key == "audit" ? [aws_iam_role.config.arn] : [])
+  usage_role_arns     = concat(lookup(var.key_usage_role_arns, each.key, []), each.key == "audit" ? concat([aws_iam_role.config.arn], aws_iam_role.audit_replication[*].arn) : [])
   service_principals  = each.value.service_principals
 }
