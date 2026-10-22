@@ -5,7 +5,8 @@ This module holds the regional data plane for one `live/<env>/<region>` stack:
 - three S3 buckets (artifacts, logs, backups);
 - Secrets Manager containers (no values);
 - ARNs for SecureString parameters that are created out-of-band;
-- optional cross-region replication of the backups bucket.
+- optional cross-region replication of the backups bucket;
+- an optional PostgreSQL database: a primary in the active region, or a cross-region read replica in the passive one (ADR-003).
 
 ## Guarantees
 
@@ -30,6 +31,15 @@ This module holds the regional data plane for one `live/<env>/<region>` stack:
   - Delete markers are not replicated, so a deletion in the source cannot erase the DR copy. The destination's own lifecycle (≤ 90 days) still bounds erasure.
   - The role `hestia-<env>-<rc>-data-replication` has the `hestia-<env>-boundary` permissions boundary and is assumable only by S3 from this account. It can read replication data from the source bucket and replicate into the destination bucket's objects. `kms:Decrypt` and `kms:Encrypt` are each scoped by `kms:ViaService` and the S3 encryption context (bucket ARN, because bucket keys are enabled).
   - The destination must be in the other allowed region. A cross-variable validation enforces this; it runs at plan time, not in `terraform validate`.
+- **Database** (`db_role` = `"primary"` or `"replica"`; `null` creates none):
+  - **No password in Terraform.** The primary sets `manage_master_user_password`, so RDS generates the master password and keeps it in a Secrets Manager secret encrypted with `secrets_kms_key_arn`. The module outputs only that secret's ARN. Applications connect with IAM database authentication. `policies/secrets.rego` denies `password`, `password_wo`, `master_password` and `master_password_wo` on `aws_db_instance` and `aws_rds_cluster`, in HCL and plan modes.
+  - **Always on:** Multi-AZ, gp3 storage encrypted with `kms_key_arn`, `publicly_accessible = false`, the `rds-ca-rsa2048-g1` CA and minor-version upgrades. The parameter group sets `rds.force_ssl = 1`.
+  - **Network:** the security group allows only 5432, from `db_allowed_security_group_ids` and `db_peer_cidr_blocks` (`0.0.0.0/x` is rejected). The subnet group uses the isolated subnets `db_subnet_ids`, at least two of them.
+  - **Audit logging:** pgaudit (`ddl,role`), connections and disconnections, DDL statements, and statements slower than 1 s. `log_statement = all` is deliberately off, because statement text can contain personal data.
+  - **Logs and monitoring:** the `postgresql` and `upgrade` logs go to log groups the module creates first, encrypted with `db_log_kms_key_arn` and kept for `db_log_retention_days` (≤ 400). Performance Insights is encrypted with `kms_key_arn`. Enhanced monitoring (60 s) uses a role with the `hestia-<env>-boundary` permissions boundary.
+  - **Backups:** automated backups are kept 7–35 days (at least 14 in prod). In prod, deletion protection is on and a final snapshot is required. In dev and staging, both are off.
+  - **Replica:** a replica takes `db_source_db_arn` (the primary's `db_instance_arn` output) and inherits storage and credentials. `enable_db_backup_replication` also copies the primary's automated backups into the replica's region, encrypted with that region's `kms_key_arn`. A read replica follows logical corruption, so the backups are the point-in-time restore path after a region loss.
+  - **Preconditions:** a replica needs `db_source_db_arn` and a primary must not set it. A primary needs `secrets_kms_key_arn`. Every database needs `db_vpc_id`, `db_log_kms_key_arn` and at least two subnets. These are checked at plan time.
 
 ## Example
 
@@ -52,6 +62,22 @@ module "data" {
     kms_key_arn = "<FR_DATA_KMS_KEY_ARN>"
     region      = "eu-west-3"
   }
+
+  db_role                       = "primary"
+  db_vpc_id                     = module.network.vpc_id
+  db_subnet_ids                 = module.network.isolated_subnet_ids
+  db_allowed_security_group_ids = ["<EKS_NODE_SECURITY_GROUP_ID>"]
+  db_peer_cidr_blocks           = ["<FR_VPC_CIDR>"]
+  db_log_kms_key_arn            = module.kms_logs.key_arn
+}
+
+# Passive region (live/prod/eu-west-3): a read replica plus a copy of the primary's backups.
+module "data" {
+  # ...buckets and secrets as above, with region = "eu-west-3"...
+  db_role                      = "replica"
+  db_source_db_arn             = "<DE_DB_INSTANCE_ARN>" # from the DE stack's db_instance_arn output
+  enable_db_backup_replication = true
+  # db_vpc_id, db_subnet_ids and db_log_kms_key_arn come from this region's modules.
 }
 ```
 
@@ -70,6 +96,19 @@ module "data" {
 | `ssm_secure_parameter_names` | list(string) | `[]` | Each must start with `/hestia/<env>/`. |
 | `enable_cross_region_replication` | bool | `false` | |
 | `replication_destination` | object | `null` | `{bucket_arn, kms_key_arn, region}`; required when replication is on. |
+| `db_role` | string | `null` | `primary`, `replica` or `null` (no database). |
+| `db_source_db_arn` | string | `null` | ARN of the primary instance. Required for a replica and for backup replication. Must be in an allowed EU region. |
+| `db_engine_version` | string | `"17"` | Its major version selects the parameter group family. |
+| `db_instance_class` | string | `"db.m7g.large"` | |
+| `db_allocated_storage` / `db_max_allocated_storage` | number | `100` / `500` | GiB. The maximum must be at least the allocated size. |
+| `db_backup_retention_days` | number | `14` | 7–35 days; at least 14 in prod. |
+| `db_vpc_id` | string | `null` | Required when a database is created. |
+| `db_subnet_ids` | list(string) | `[]` | Isolated subnets; at least two. |
+| `db_allowed_security_group_ids` | list(string) | `[]` | Allowed on 5432. |
+| `db_peer_cidr_blocks` | list(string) | `[]` | Peer VPC CIDRs allowed on 5432; `0.0.0.0/x` is rejected. |
+| `db_log_kms_key_arn` | string | `null` | Logs KMS key. Required when a database is created. |
+| `db_log_retention_days` | number | `365` | A CloudWatch retention value of at most 400. |
+| `enable_db_backup_replication` | bool | `false` | Copies the primary's automated backups into this region. |
 
 ## Outputs
 
@@ -79,9 +118,17 @@ module "data" {
 | `app_secret_arns` | Container ARNs keyed by app secret name. |
 | `ssm_secure_parameter_arns` | Parameter ARNs keyed by name. |
 | `replication_role_arn` | Replication role ARN, or `null` when replication is off. |
+| `db_instance_arn` | DB instance ARN; a replica stack takes it as `db_source_db_arn`. |
+| `db_endpoint` | `host:port`. |
+| `master_user_secret_arn` | ARN of the RDS-managed master secret (primary only); never the value. |
+| `db_security_group_id` | Database security group ID. |
+| `db_backup_replication_arn` | ARN of the replicated automated backups, or `null`. |
 
 ## Static checks
 
-- checkov: `CKV2_AWS_57` is skipped inline on the secret containers. Rotation belongs to the external secret store, and Terraform holds no value to rotate. The `CKV_AWS_144` and `CKV_AWS_300` skips live in `modules/s3-bucket`.
-- `terraform validate`: run against a scratch root, with the replication, secrets and invalid-lifecycle cases. The module has no `examples/` root.
+- checkov: `CKV2_AWS_57` is skipped inline on the secret containers. Rotation belongs to the external secret store, and Terraform holds no value to rotate. The `CKV_AWS_144` and `CKV_AWS_300` skips live in `modules/s3-bucket`. Three more skips are inline on the database:
+  - `CKV_AWS_293`: deletion protection is on only in prod.
+  - `CKV2_AWS_30`: `log_statement = all` stays off, because statement text can contain personal data.
+  - `CKV2_AWS_5`: checkov does not resolve the `count`-indexed security group attachment.
+- `terraform validate`: run against a scratch root, with the replication, secrets, database primary, database replica (with backup replication) and invalid-lifecycle cases. The module has no `examples/` root.
 - tflint: not run; it is not installed in this environment.
