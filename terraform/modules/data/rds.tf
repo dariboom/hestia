@@ -211,3 +211,21 @@ resource "aws_db_instance" "db" {
     }
   }
 }
+
+# DR copy of the primary's automated backups (point-in-time restore) in this region, independent of
+# the read replica: a replica follows logical corruption, backups do not. Created in the destination
+# stack, so the source is db_source_db_arn and the copies are encrypted with this region's data key.
+resource "aws_db_instance_automated_backups_replication" "db" {
+  count = var.enable_db_backup_replication ? 1 : 0
+
+  source_db_instance_arn = var.db_source_db_arn
+  kms_key_id             = var.kms_key_arn
+  retention_period       = var.db_backup_retention_days
+
+  lifecycle {
+    precondition {
+      condition     = var.db_source_db_arn != null && !can(regex(":rds:${var.region}:", coalesce(var.db_source_db_arn, "-")))
+      error_message = "enable_db_backup_replication needs db_source_db_arn of a primary in the other region."
+    }
+  }
+}

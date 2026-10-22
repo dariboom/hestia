@@ -262,3 +262,9 @@ variable "db_log_retention_days" {
     error_message = "db_log_retention_days must be a CloudWatch retention value <= 400."
   }
 }
+
+variable "enable_db_backup_replication" {
+  description = "Replicate the primary's (db_source_db_arn) automated backups into this region for point-in-time restore after a region loss."
+  type        = bool
+  default     = false
+}

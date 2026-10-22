@@ -44,3 +44,23 @@ test_plan_securestring_denied if {
 test_plan_string_parameter_allowed if {
 	count(secrets.deny) == 0 with input as {"resource_changes": [rc("aws_ssm_parameter", {"type": "String"})]}
 }
+
+test_hcl_db_password_denied if {
+	count(secrets.deny) == 1 with input as hcl("resource", "aws_db_instance", {"password": "${var.x}"})
+}
+
+test_hcl_cluster_master_password_denied if {
+	count(secrets.deny) == 1 with input as hcl("resource", "aws_rds_cluster", {"master_password": "${var.x}"})
+}
+
+test_hcl_db_managed_password_allowed if {
+	count(secrets.deny) == 0 with input as hcl("resource", "aws_db_instance", {"manage_master_user_password": true})
+}
+
+test_plan_db_password_denied if {
+	count(secrets.deny) == 1 with input as {"resource_changes": [rc("aws_db_instance", {"password": "x"})]}
+}
+
+test_plan_db_null_password_allowed if {
+	count(secrets.deny) == 0 with input as {"resource_changes": [rc("aws_db_instance", {"password": null, "manage_master_user_password": true})]}
+}

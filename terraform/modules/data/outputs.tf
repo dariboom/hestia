@@ -37,3 +37,8 @@ output "db_security_group_id" {
   description = "Database security group ID (null without a database)."
   value       = one(aws_security_group.db[*].id)
 }
+
+output "db_backup_replication_arn" {
+  description = "ARN of the replicated automated backups in this region (null when off)."
+  value       = one(aws_db_instance_automated_backups_replication.db[*].id)
+}
