@@ -80,3 +80,46 @@ variable "alert_email_ssm_parameter_name" {
     error_message = "alert_email_ssm_parameter_name must be under /hestia/."
   }
 }
+
+variable "audit_bucket_admin_role_arns" {
+  description = "IAM role ARNs that alone may change the audit bucket policy or ACLs."
+  type        = list(string)
+}
+
+variable "audit_access_log_bucket" {
+  description = "Bucket for the audit bucket's server access logs, or null. S3 access logs need an SSE-S3 target."
+  type        = string
+  default     = null
+}
+
+variable "audit_retention_days" {
+  description = "Object Lock retention and expiry of audit records, in days. prod needs at least 3650 (10 years)."
+  type        = number
+  default     = 3650
+
+  validation {
+    condition     = var.audit_retention_days > 365
+    error_message = "audit_retention_days must exceed 365, the Deep Archive transition."
+  }
+
+  validation {
+    condition     = var.environment != "prod" || var.audit_retention_days >= 3650
+    error_message = "audit_retention_days must be at least 3650 in prod."
+  }
+}
+
+variable "object_lock_mode" {
+  description = "Object Lock mode of the audit bucket: COMPLIANCE in prod, GOVERNANCE allowed in dev and staging."
+  type        = string
+  default     = "COMPLIANCE"
+
+  validation {
+    condition     = contains(["COMPLIANCE", "GOVERNANCE"], var.object_lock_mode)
+    error_message = "object_lock_mode must be COMPLIANCE or GOVERNANCE."
+  }
+
+  validation {
+    condition     = var.environment != "prod" || var.object_lock_mode == "COMPLIANCE"
+    error_message = "object_lock_mode must be COMPLIANCE in prod."
+  }
+}

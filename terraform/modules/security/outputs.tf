@@ -7,3 +7,8 @@ output "security_alerts_topic_arn" {
   description = "KMS-encrypted SNS topic receiving GuardDuty (severity >= 7) and Security Hub CRITICAL/HIGH findings."
   value       = aws_sns_topic.security_alerts.arn
 }
+
+output "audit_bucket_arn" {
+  description = "WORM audit bucket of this region."
+  value       = module.audit_bucket.arn
+}

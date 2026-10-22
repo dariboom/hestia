@@ -2,9 +2,7 @@
 # recorded once, delivery to this region's audit bucket, and the account aggregator in home_region only.
 
 locals {
-  # Created by the audit store in this module (Task 10) under this name.
-  audit_bucket_name = "${local.name_prefix}-audit-${local.account_id}"
-  audit_bucket_arn  = "${local.arn_prefix}:s3:::${local.audit_bucket_name}"
+  audit_bucket_arn = module.audit_bucket.arn
 }
 
 data "aws_iam_policy_document" "config_assume" {
@@ -82,7 +80,7 @@ resource "aws_config_configuration_recorder" "this" {
 
 resource "aws_config_delivery_channel" "this" {
   name           = "${local.name_prefix}-delivery"
-  s3_bucket_name = local.audit_bucket_name
+  s3_bucket_name = module.audit_bucket.id
   s3_kms_key_arn = module.kms["audit"].key_arn
 
   snapshot_delivery_properties {
