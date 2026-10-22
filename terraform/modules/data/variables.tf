@@ -121,3 +121,34 @@ variable "ssm_secure_parameter_names" {
     error_message = "ssm_secure_parameter_names must start with /hestia/<environment>/."
   }
 }
+
+variable "enable_cross_region_replication" {
+  description = "Replicate the backups bucket to the peer region's backups bucket (DR copy)."
+  type        = bool
+  default     = false
+}
+
+variable "replication_destination" {
+  description = "Peer-region backups bucket and its KMS key; required when enable_cross_region_replication is true."
+  type = object({
+    bucket_arn  = string
+    kms_key_arn = string
+    region      = string
+  })
+  default = null
+
+  validation {
+    # || does not short-circuit in HCL, hence try().
+    condition = var.replication_destination == null || try(
+      can(regex("^arn:aws[a-z-]*:s3:::[a-z0-9.-]+$", var.replication_destination.bucket_arn)) &&
+      can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.replication_destination.kms_key_arn)) &&
+      contains(["eu-central-1", "eu-west-3"], var.replication_destination.region),
+    false)
+    error_message = "replication_destination needs an S3 bucket ARN, a KMS key ARN (not an alias) and an EU region in the allowlist (ADR-005)."
+  }
+
+  validation {
+    condition     = !var.enable_cross_region_replication || try(var.replication_destination.region != var.region, false)
+    error_message = "replication_destination is required when enable_cross_region_replication is true, and its region must differ from var.region."
+  }
+}

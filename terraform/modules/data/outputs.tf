@@ -12,3 +12,8 @@ output "ssm_secure_parameter_arns" {
   description = "SecureString parameter ARNs keyed by name, for ssm:GetParameter grants (no values)."
   value       = local.ssm_secure_parameter_arns
 }
+
+output "replication_role_arn" {
+  description = "Replication role ARN (null when replication is disabled)."
+  value       = one(aws_iam_role.replication[*].arn)
+}
