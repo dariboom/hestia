@@ -138,3 +138,71 @@ resource "aws_kinesis_firehose_delivery_stream" "logs" {
     }
   }
 }
+
+# Pre-created so the CloudWatch agent (amazon-cloudwatch-observability) writes into KMS-encrypted,
+# retention-bounded groups instead of auto-creating unencrypted, never-expiring ones.
+resource "aws_cloudwatch_log_group" "container_insights" {
+  for_each = toset(["application", "dataplane", "host", "performance"])
+
+  name              = "/aws/containerinsights/${local.cluster_name}/${each.key}"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.log_kms_key_arn
+  tags              = var.tags
+}
+
+locals {
+  archived_log_groups = {
+    application   = aws_cloudwatch_log_group.container_insights["application"].name
+    control-plane = aws_cloudwatch_log_group.cluster.name
+  }
+}
+
+data "aws_iam_policy_document" "logs_to_firehose_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["logs.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:${local.partition}:logs:${var.region}:${local.account_id}:log-group:/aws/*/${local.cluster_name}/*"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "logs_to_firehose" {
+  statement {
+    sid       = "PutToLogStream"
+    actions   = ["firehose:PutRecord", "firehose:PutRecordBatch"]
+    resources = [aws_kinesis_firehose_delivery_stream.logs.arn]
+  }
+}
+
+resource "aws_iam_role" "logs_to_firehose" {
+  name                 = "${local.cluster_name}-logs-to-firehose"
+  assume_role_policy   = data.aws_iam_policy_document.logs_to_firehose_assume.json
+  permissions_boundary = local.boundary_arn
+  tags                 = var.tags
+}
+
+resource "aws_iam_role_policy" "logs_to_firehose" {
+  name   = "put-log-stream"
+  role   = aws_iam_role.logs_to_firehose.id
+  policy = data.aws_iam_policy_document.logs_to_firehose.json
+}
+
+resource "aws_cloudwatch_log_subscription_filter" "archive" {
+  for_each = local.archived_log_groups
+
+  name            = "archive-${each.key}"
+  log_group_name  = each.value
+  filter_pattern  = ""
+  destination_arn = aws_kinesis_firehose_delivery_stream.logs.arn
+  role_arn        = aws_iam_role.logs_to_firehose.arn
+
+  depends_on = [aws_iam_role_policy.logs_to_firehose]
+}

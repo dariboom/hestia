@@ -87,7 +87,7 @@ resource "aws_eks_addon" "after_nodes" {
   resolve_conflicts_on_update = "OVERWRITE"
   tags                        = var.tags
 
-  depends_on = [aws_eks_node_group.this]
+  depends_on = [aws_eks_node_group.this, aws_cloudwatch_log_group.container_insights]
 }
 
 # Cluster Autoscaler (installed by the platform Helm release) may only resize this cluster's
