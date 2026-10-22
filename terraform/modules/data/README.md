@@ -37,7 +37,7 @@ This module holds the regional data plane for one `live/<env>/<region>` stack:
   - **Network:** the security group allows only 5432, from `db_allowed_security_group_ids` and `db_peer_cidr_blocks` (`0.0.0.0/x` is rejected). The subnet group uses the isolated subnets `db_subnet_ids`, at least two of them.
   - **Audit logging:** pgaudit (`ddl,role`), connections and disconnections, DDL statements, and statements slower than 1 s. `log_statement = all` is deliberately off, because statement text can contain personal data.
   - **Logs and monitoring:** the `postgresql` and `upgrade` logs go to log groups the module creates first, encrypted with `db_log_kms_key_arn` and kept for `db_log_retention_days` (≤ 400). Performance Insights is encrypted with `kms_key_arn`. Enhanced monitoring (60 s) uses a role with the `hestia-<env>-boundary` permissions boundary.
-  - **Backups:** automated backups are kept 7–35 days (at least 14 in prod). In prod, deletion protection is on and a final snapshot is required. In dev and staging, both are off.
+  - **Backups:** automated backups are kept 7–35 days (35 in prod, the retention floor in the Global Constraints). In prod, deletion protection is on and a final snapshot is required. In dev and staging, both are off.
   - **Replica:** a replica takes `db_source_db_arn` (the primary's `db_instance_arn` output) and inherits storage and credentials. `enable_db_backup_replication` also copies the primary's automated backups into the replica's region, encrypted with that region's `kms_key_arn`. A read replica follows logical corruption, so the backups are the point-in-time restore path after a region loss.
   - **Preconditions:** a replica needs `db_source_db_arn` and a primary must not set it. A primary needs `secrets_kms_key_arn`. Every database needs `db_vpc_id`, `db_log_kms_key_arn` and at least two subnets. These are checked at plan time.
 
@@ -101,7 +101,7 @@ module "data" {
 | `db_engine_version` | string | `"17"` | Its major version selects the parameter group family. |
 | `db_instance_class` | string | `"db.m7g.large"` | |
 | `db_allocated_storage` / `db_max_allocated_storage` | number | `100` / `500` | GiB. The maximum must be at least the allocated size. |
-| `db_backup_retention_days` | number | `14` | 7–35 days; at least 14 in prod. |
+| `db_backup_retention_days` | number | `14` | 7–35 days; prod must set 35. |
 | `db_vpc_id` | string | `null` | Required when a database is created. |
 | `db_subnet_ids` | list(string) | `[]` | Isolated subnets; at least two. |
 | `db_allowed_security_group_ids` | list(string) | `[]` | Allowed on 5432. |

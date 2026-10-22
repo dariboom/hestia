@@ -207,13 +207,13 @@ variable "db_max_allocated_storage" {
 }
 
 variable "db_backup_retention_days" {
-  description = "Automated backup retention: at least 7 days, at least 14 in prod, at most 35 (RDS limit)."
+  description = "Automated backup retention: 7-35 days (35 is the RDS limit); prod must use 35 (Global Constraints retention floor)."
   type        = number
   default     = 14
 
   validation {
-    condition     = var.db_backup_retention_days >= (var.environment == "prod" ? 14 : 7) && var.db_backup_retention_days <= 35
-    error_message = "db_backup_retention_days must be 7-35 (14-35 in prod)."
+    condition     = var.db_backup_retention_days >= (var.environment == "prod" ? 35 : 7) && var.db_backup_retention_days <= 35
+    error_message = "db_backup_retention_days must be 7-35, and 35 in prod."
   }
 }
 
