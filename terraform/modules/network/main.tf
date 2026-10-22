@@ -156,6 +156,7 @@ resource "aws_route_table_association" "isolated" {
 }
 
 resource "aws_network_acl" "isolated" {
+  #checkov:skip=CKV2_AWS_1:Attached via subnet_ids below; checkov does not resolve the splat reference.
   vpc_id     = aws_vpc.this.id
   subnet_ids = aws_subnet.isolated[*].id
   tags       = merge(var.tags, { Name = "${local.name}-isolated" })
