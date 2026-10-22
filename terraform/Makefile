@@ -43,6 +43,11 @@ policy: guard
 	opa check --strict policies/*.rego
 	opa test policies/*.rego -v
 	conftest test --combine --parser hcl2 $$(find modules live bootstrap org -name '*.tf' -not -path '*/.terraform/*' 2>/dev/null)
+	conftest test policies/fixtures/plan_compliant.json
+	@# The violations fixture must be rejected; a pass here means a rule silently stopped firing.
+	@if conftest test --no-color policies/fixtures/plan_violations.json >/dev/null; then \
+	  echo "policy: plan_violations.json unexpectedly passed" >&2; exit 1; fi
+	@echo "policy: plan_violations.json rejected as expected"
 
 secrets: guard
 	gitleaks detect --no-banner --config .gitleaks.toml --source .

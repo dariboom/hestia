@@ -1,0 +1,56 @@
+{
+  "_comment": "SYNTHETIC fixture shaped like `terraform show -json` output. Hand-written, not produced by any plan run. Account 000000000000 is a placeholder.",
+  "format_version": "1.2",
+  "configuration": {
+    "provider_config": {
+      "aws": {"name": "aws", "expressions": {"region": {"constant_value": "eu-central-1"}}}
+    },
+    "root_module": {
+      "variables": {"db_password_secret_arn": {"description": "Injected by external CI/CD secret store", "sensitive": true}}
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "module.audit.aws_s3_bucket.this",
+      "module_address": "module.audit",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "change": {"actions": ["create"], "after": {"bucket": "hestia-dev-de-audit", "region": "eu-central-1", "tags_all": {"hestia:data-classification": "confidential"}}, "after_unknown": {}}
+    },
+    {
+      "address": "module.audit.aws_s3_bucket_server_side_encryption_configuration.this",
+      "module_address": "module.audit",
+      "mode": "managed",
+      "type": "aws_s3_bucket_server_side_encryption_configuration",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "rule": [{"apply_server_side_encryption_by_default": [{"sse_algorithm": "aws:kms"}], "bucket_key_enabled": true}]}, "after_unknown": {}}
+    },
+    {
+      "address": "module.audit.aws_s3_bucket_versioning.this",
+      "module_address": "module.audit",
+      "mode": "managed",
+      "type": "aws_s3_bucket_versioning",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "versioning_configuration": [{"status": "Enabled"}]}, "after_unknown": {}}
+    },
+    {
+      "address": "module.audit.aws_s3_bucket_public_access_block.this",
+      "module_address": "module.audit",
+      "mode": "managed",
+      "type": "aws_s3_bucket_public_access_block",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "block_public_acls": true, "block_public_policy": true, "ignore_public_acls": true, "restrict_public_buckets": true}, "after_unknown": {}}
+    },
+    {
+      "address": "module.data.aws_db_instance.primary",
+      "module_address": "module.data",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "storage_encrypted": true, "publicly_accessible": false, "tags_all": {"hestia:data-classification": "personal"}}, "after_unknown": {}}
+    },
+    {
+      "address": "module.compute.aws_cloudwatch_log_group.eks",
+      "module_address": "module.compute",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "retention_in_days": 365, "tags_all": {"hestia:data-classification": "internal"}}, "after_unknown": {"kms_key_id": true}}
+    }
+  ]
+}

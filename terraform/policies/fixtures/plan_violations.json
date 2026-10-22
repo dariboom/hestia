@@ -1,0 +1,44 @@
+{
+  "_comment": "SYNTHETIC fixture shaped like `terraform show -json` output. Hand-written, not produced by any plan run. Every resource breaks at least one rule; `make policy` expects conftest to fail on it. Account 000000000000 is a placeholder.",
+  "format_version": "1.2",
+  "configuration": {
+    "provider_config": {
+      "aws": {"name": "aws", "expressions": {"region": {"constant_value": "us-west-2"}}}
+    },
+    "root_module": {
+      "variables": {"app_api_key": {"default": "<APP_API_KEY_PLACEHOLDER>", "sensitive": true}}
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.leaky",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "change": {"actions": ["create"], "after": {"bucket": "hestia-dev-us-leaky", "region": "us-west-2", "tags_all": {}}, "after_unknown": {}}
+    },
+    {
+      "address": "aws_db_instance.open",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "storage_encrypted": false, "publicly_accessible": true, "tags_all": {"hestia:data-classification": "personal"}}, "after_unknown": {}}
+    },
+    {
+      "address": "aws_eks_cluster.public",
+      "mode": "managed",
+      "type": "aws_eks_cluster",
+      "change": {"actions": ["create"], "after": {"region": "eu-west-3", "vpc_config": [{"endpoint_public_access": true}], "tags_all": {"hestia:data-classification": "internal"}}, "after_unknown": {}}
+    },
+    {
+      "address": "aws_cloudwatch_log_group.forever",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "change": {"actions": ["create"], "after": {"region": "eu-central-1", "retention_in_days": 0, "kms_key_id": null, "tags_all": {"hestia:data-classification": "internal"}}, "after_unknown": {}}
+    },
+    {
+      "address": "aws_iam_policy.admin",
+      "mode": "managed",
+      "type": "aws_iam_policy",
+      "change": {"actions": ["create"], "after": {"policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"All\",\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}", "tags_all": {"hestia:data-classification": "internal"}}, "after_unknown": {}}
+    }
+  ]
+}
