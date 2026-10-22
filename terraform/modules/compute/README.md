@@ -5,7 +5,8 @@ This module holds the regional EKS platform for one `live/<env>/<region>` stack 
 - a private EKS control plane named `hestia-<env>-<rc>-eks`;
 - managed node groups;
 - the core add-ons, each with its own IRSA role;
-- an IRSA role for the Cluster Autoscaler, which the platform Helm release installs.
+- an IRSA role for the Cluster Autoscaler, which the platform Helm release installs;
+- an in-region log pipeline: CloudWatch Logs → Firehose → an S3 log archive.
 
 The `irsa-role/` submodule builds one IRSA role. Workloads use it for their own service accounts.
 
@@ -42,12 +43,24 @@ The `irsa-role/` submodule builds one IRSA role. Workloads use it for their own 
   - Node groups ignore drift in `desired_size`, because the autoscaler owns it.
 - **Node groups:** each group needs `0 ≤ min_size ≤ desired_size ≤ max_size ≤ 50`. Groups use the private subnets and gp3 root volumes, and roll with at most 33 % of nodes unavailable. Nodes carry the EKS cluster security group plus a rule-less identity group (`node_security_group_id`), which other stacks reference. For example, the data module's `db_allowed_security_group_ids` admits pod traffic into RDS.
 
+- **Log pipeline (data stays in `region`):**
+  - The four Container Insights groups `/aws/containerinsights/<cluster>/{application,dataplane,host,performance}` are created before the observability add-on. Like the control-plane group, they use `log_kms_key_arn` and `log_retention_days`. Without them, the agent would create unencrypted groups that never expire.
+  - Subscription filters send the `application` and control-plane groups to the Firehose stream `<cluster>-logs`. A precondition requires that stream to be in `region`.
+  - Firehose encrypts the stream with `log_archive_kms_key_arn`. It unpacks the gzip'd CloudWatch envelopes into plain log lines and writes GZIP objects under `logs/YYYY/MM/DD/`. Failed records go to `errors/<type>/YYYY/MM/DD/`.
+  - The archive bucket is `hestia-<env>-<rc>-log-archive-<account>`, built with `modules/s3-bucket` and classified `personal`. Objects move to GLACIER_IR after `transition_days` (30) and are deleted after `expiration_days` (≤ 400, the GDPR erasure bound). Noncurrent versions are kept 1 day.
+  - **Firehose role:** can only list the archive bucket and put, get or abort objects in it. It may use `log_archive_kms_key_arn` only through S3 in `region`, for this bucket's encryption context.
+  - **Logs role:** trusted by CloudWatch Logs only for this cluster's log groups (`aws:SourceArn`). It may only `PutRecord` and `PutRecordBatch` to the one stream.
+  - No statement in either role uses a wildcard.
+
 ## Key policies required
 
 The module does not edit key policies. The security module's keys must allow:
 
 - `kms_key_arn`: the EKS cluster role (Secrets), `AWSServiceRoleForAutoScaling` (encrypted root volumes) and EBS through grants;
-- `log_kms_key_arn`: `logs.<region>.amazonaws.com`, with the `kms:EncryptionContext:aws:logs:arn` condition.
+- `log_kms_key_arn`: `logs.<region>.amazonaws.com`, with the `kms:EncryptionContext:aws:logs:arn` condition;
+- `log_archive_kms_key_arn`:
+  - S3 use by the Firehose role, which the role policy already scopes;
+  - grant creation by the principal running Terraform, because Firehose stream encryption with a customer key works through a grant.
 
 ## Example
 
@@ -61,6 +74,10 @@ module "compute" {
   admin_principal_arns = ["arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-prod-platform-admin"]
   kms_key_arn          = module.kms_compute.key_arn # modules/kms-key
   log_kms_key_arn      = module.kms_logs.key_arn
+
+  log_archive_kms_key_arn = module.kms_logs.key_arn
+  bucket_admin_role_arns  = ["arn:aws:iam::<AWS_ACCOUNT_ID>:role/hestia-prod-tf-deploy"]
+  log_archive_lifecycle   = { transition_days = 30, expiration_days = 400 }
 
   node_groups = {
     general = { instance_types = ["m7i.large"], min_size = 3, max_size = 12, desired_size = 3 }
@@ -98,7 +115,10 @@ module "api_irsa" {
 | `admin_principal_arns` | list(string) | required | IAM role ARNs, at least one. |
 | `kms_key_arn` | string | required | Key ARN, not an alias. Used for Secrets and EBS. |
 | `log_kms_key_arn` | string | required | Key ARN for the control-plane log group. |
-| `log_retention_days` | number | `365` | CloudWatch value ≤ 400. |
+| `log_retention_days` | number | `365` | CloudWatch value ≤ 400. Applies to the control-plane and Container Insights groups. |
+| `log_archive_kms_key_arn` | string | required | Key ARN for the archive bucket and the Firehose stream. |
+| `bucket_admin_role_arns` | list(string) | required | Principals that may change the archive bucket policy. |
+| `log_archive_lifecycle` | object | `{}` | `transition_days` (30) and `expiration_days` (400). Requires `1 ≤ transition < expiration ≤ 400`. |
 | `node_groups` | map(object) | required | Fields: `instance_types`, `min_size`, `max_size`, `desired_size`, plus optional `ami_type` (`AL2023_x86_64_STANDARD`), `capacity_type` (`ON_DEMAND` or `SPOT`), `disk_size` (50 GiB, ≥ 20), `labels` and `taints` (`effect` is `NO_SCHEDULE`, `NO_EXECUTE` or `PREFER_NO_SCHEDULE`). |
 
 `irsa-role/` inputs:
@@ -125,14 +145,16 @@ module "api_irsa" {
 | `node_security_group_id` | Worker-node identity security group. |
 | `node_role_arn` | Worker-node IAM role ARN. |
 | `cluster_autoscaler_role_arn` | IRSA role for the Cluster Autoscaler. |
+| `log_archive_bucket_arn` | In-region S3 log archive. |
+| `log_firehose_arn` | Firehose stream that writes the archive. |
 
 `irsa-role/` outputs: `role_arn` and `role_name`.
 
 ## Static checks
 
-- checkov: two inline skips.
+- checkov: two inline skips in this module. The `CKV_AWS_144` and `CKV_AWS_300` skips on the archive bucket live in `modules/s3-bucket`.
   - `CKV_AWS_339`: the pinned checkov release predates EKS 1.33. `cluster_version` is validated and kept on a supported release.
   - `CKV2_AWS_5`: the node identity group is attached through the launch template, which checkov does not resolve.
 - conftest: `no-wildcard-iam` passes only because of the `AutoscalingDescribe` exception. With that entry removed, it fails as expected.
-- `terraform validate`: run against a scratch root, with a valid two-group case and an invalid `desired_size > max_size` case, which is rejected. `irsa-role/` was validated separately, with a valid case and a wildcard service account case, which is rejected. The module has no `examples/` root.
+- `terraform validate`: run against a scratch root, with a valid two-group case and two invalid cases, both rejected: `desired_size > max_size` and a 730-day `log_archive_lifecycle.expiration_days`. `irsa-role/` was validated separately, with a valid case and a wildcard service account case, which is rejected. The module has no `examples/` root.
 - tflint: not run; it is not installed in this environment.
