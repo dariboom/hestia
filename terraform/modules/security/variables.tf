@@ -123,3 +123,25 @@ variable "object_lock_mode" {
     error_message = "object_lock_mode must be COMPLIANCE in prod."
   }
 }
+
+variable "cloudtrail_data_event_bucket_arns" {
+  description = "S3 bucket ARNs whose object reads and writes the trail records (data, backups, data lake). Used in home_region only."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for b in var.cloudtrail_data_event_bucket_arns : can(regex("^arn:aws[a-z-]*:s3:::[a-z0-9.-]+$", b))])
+    error_message = "cloudtrail_data_event_bucket_arns entries must be S3 bucket ARNs."
+  }
+}
+
+variable "cloudtrail_log_retention_days" {
+  description = "Retention of the CloudTrail copy in CloudWatch Logs; capped at 400 days. The audit bucket keeps the WORM record."
+  type        = number
+  default     = 365
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400], var.cloudtrail_log_retention_days)
+    error_message = "cloudtrail_log_retention_days must be a CloudWatch retention value <= 400."
+  }
+}

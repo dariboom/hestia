@@ -12,3 +12,8 @@ output "audit_bucket_arn" {
   description = "WORM audit bucket of this region."
   value       = module.audit_bucket.arn
 }
+
+output "cloudtrail_arn" {
+  description = "Multi-region trail ARN in home_region; null in the other region."
+  value       = one(aws_cloudtrail.this[*].arn)
+}
