@@ -22,3 +22,8 @@ output "alb_security_group_id" {
   description = "ALB security group; workload security groups admit target_port from it."
   value       = aws_security_group.alb.id
 }
+
+output "web_acl_arn" {
+  description = "Regional WAF web ACL associated with the ALB."
+  value       = aws_wafv2_web_acl.this.arn
+}

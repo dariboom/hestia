@@ -80,3 +80,51 @@ variable "health_check_path" {
     error_message = "health_check_path must start with /."
   }
 }
+
+variable "waf_managed_rule_groups" {
+  description = "AWS managed rule groups evaluated in order (priority = list index), all in their default block mode."
+  type        = list(string)
+  default = [
+    "AWSManagedRulesCommonRuleSet",
+    "AWSManagedRulesKnownBadInputsRuleSet",
+    "AWSManagedRulesSQLiRuleSet",
+    "AWSManagedRulesAmazonIpReputationList",
+  ]
+
+  validation {
+    condition     = length(var.waf_managed_rule_groups) > 0 && alltrue([for g in var.waf_managed_rule_groups : can(regex("^AWSManagedRules[A-Za-z0-9]+$", g))])
+    error_message = "waf_managed_rule_groups must be a non-empty list of AWSManagedRules* group names."
+  }
+}
+
+variable "rate_limit_per_5min" {
+  description = "Requests per client IP per 5 minutes before the rate rule blocks it."
+  type        = number
+  default     = 2000
+
+  validation {
+    condition     = var.rate_limit_per_5min >= 100 && var.rate_limit_per_5min <= 2000000000
+    error_message = "rate_limit_per_5min must be between 100 and 2000000000."
+  }
+}
+
+variable "log_kms_key_arn" {
+  description = "KMS key for the WAF log group; its policy must allow logs.<region>.amazonaws.com (security module 'logs' key)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.log_kms_key_arn))
+    error_message = "log_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "log_retention_days" {
+  description = "Retention of WAF logs; capped at 400 days (GDPR erasure bound: logs hold client IPs)."
+  type        = number
+  default     = 365
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400], var.log_retention_days)
+    error_message = "log_retention_days must be a CloudWatch retention value <= 400."
+  }
+}
