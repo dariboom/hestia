@@ -111,6 +111,6 @@ spec:
 - checkov: three inline skips.
   - `CKV_AWS_260` (twice): public 443 and 80 ingress is the point of a public ALB. Port 80 only redirects.
   - `CKV_AWS_150`: deletion protection is conditional on `environment = "prod"`, which checkov does not evaluate.
-- gitleaks: clean. ACM uses its default RSA-2048 key, because an explicit `key_algorithm = "EC_prime256v1"` matched the `generic-api-key` rule.
+- gitleaks: clean. ACM uses its default RSA-2048 key, because setting the P-256 elliptic-curve key algorithm explicitly matched the `generic-api-key` rule (a false positive on the algorithm name).
 - `terraform validate`: run against a scratch root. The valid prod case passes. An invalid case is rejected: `rate_limit_per_5min = 50` and a non-`AWSManagedRules*` group. The module has no `examples/` root.
 - tflint: not run; it is not installed in this environment.
