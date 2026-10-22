@@ -31,6 +31,12 @@
       "justification": "AutoScaling and EC2 Describe*/GetInstanceTypesFromInstanceRequirements calls do not support resource-level permissions; AWS requires Resource \"*\". They are read-only; the mutating statement is scoped to ASGs tagged k8s.io/cluster-autoscaler/<cluster>=owned."
     },
     {
+      "path": "modules/sustainability/main.tf",
+      "address": "data.aws_iam_policy_document.carbon_signal",
+      "sids": ["PutCarbonMetric"],
+      "justification": "cloudwatch:PutMetricData does not support resource-level permissions; AWS requires Resource \"*\". The cloudwatch:namespace condition limits it to Hestia/Carbon (ADR-008)."
+    },
+    {
       "address_pattern": "module\\.cluster_autoscaler_irsa\\.aws_iam_role_policy\\.this(\\[0\\])?$",
       "sids": ["AutoscalingDescribe"],
       "justification": "Plan-time view of the Cluster Autoscaler policy; see the modules/compute/addons.tf entry."
