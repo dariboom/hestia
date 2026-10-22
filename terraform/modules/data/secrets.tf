@@ -3,7 +3,7 @@
 # through Terraform (enforced by policies/secrets.rego and the `make secrets` grep gate).
 
 resource "aws_secretsmanager_secret" "app" {
-  #checkov:skip=CKV2_AWS_57:Rotation is owned by the external secret store (ADR-003); Terraform holds no value to rotate.
+  #checkov:skip=CKV2_AWS_57:Rotation is owned by the external secret store; Terraform holds no value to rotate.
   for_each = toset(var.app_secret_names)
 
   name                    = "hestia/${var.environment}/${local.region_code}/app/${each.key}"

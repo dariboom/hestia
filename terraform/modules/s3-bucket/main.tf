@@ -5,7 +5,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "this" {
-  #checkov:skip=CKV_AWS_144:Cross-region replication is decided per bucket in the data module (ADR-002), not in the primitive.
+  #checkov:skip=CKV_AWS_144:Cross-region replication is decided per bucket in the data module (ADR-003), not in the primitive.
   #checkov:skip=CKV2_AWS_62:Event notifications are wired by consumers (e.g. carbon pipeline), not the primitive.
   bucket              = var.name
   force_destroy       = var.force_destroy
@@ -76,6 +76,7 @@ resource "aws_s3_bucket_object_lock_configuration" "this" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  #checkov:skip=CKV_AWS_300:Every rule sets abort_incomplete_multipart_upload (7 days); checkov does not see it inside the dynamic block.
   bucket = aws_s3_bucket.this.id
 
   dynamic "rule" {
