@@ -34,6 +34,11 @@ locals {
           service         = "cloudtrail.amazonaws.com"
           source_arn_like = "${local.arn_prefix}:cloudtrail:*:${local.account_id}:trail/hestia-${var.environment}-*"
         },
+        # EventBridge publishing to the encrypted security-alerts topic (alerts.tf).
+        {
+          service         = "events.amazonaws.com"
+          source_arn_like = "${local.arn_prefix}:events:${var.region}:${local.account_id}:rule/${local.name_prefix}-*"
+        },
       ]
     }
     secrets = {

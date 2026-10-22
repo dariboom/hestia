@@ -70,3 +70,13 @@ variable "key_usage_role_arns" {
     error_message = "key_usage_role_arns keys must be data, logs, audit, secrets or compute."
   }
 }
+
+variable "alert_email_ssm_parameter_name" {
+  description = "SSM String parameter holding the security-alerts email address (e.g. <SSM_PARAMETER_NAME>); read at plan time."
+  type        = string
+
+  validation {
+    condition     = can(regex("^/hestia/", var.alert_email_ssm_parameter_name))
+    error_message = "alert_email_ssm_parameter_name must be under /hestia/."
+  }
+}
