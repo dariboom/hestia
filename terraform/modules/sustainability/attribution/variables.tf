@@ -102,3 +102,85 @@ variable "label_coefficients" {
     error_message = "label_coefficients must be non-negative and name their source."
   }
 }
+
+variable "audit_bucket_arn" {
+  description = "Audit bucket (security module output audit_bucket_arn); the report goes to reports/eed-art12/."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:s3:::[a-z0-9.-]+$", var.audit_bucket_arn))
+    error_message = "audit_bucket_arn must be an S3 bucket ARN."
+  }
+}
+
+variable "audit_kms_key_arn" {
+  description = "The audit bucket's KMS key (security module kms_key_arns[\"audit\"])."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.audit_kms_key_arn))
+    error_message = "audit_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "log_kms_key_arn" {
+  description = "KMS key for the Lambda log group; its policy must allow logs.<region>.amazonaws.com (security module 'logs' key)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/", var.log_kms_key_arn))
+    error_message = "log_kms_key_arn must be a KMS key ARN (not an alias)."
+  }
+}
+
+variable "log_retention_days" {
+  description = "Retention of the report Lambda logs; capped at 400 days."
+  type        = number
+  default     = 365
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400], var.log_retention_days)
+    error_message = "log_retention_days must be a CloudWatch retention value <= 400."
+  }
+}
+
+variable "package_path" {
+  description = "Path to the report zip, built by CI from ../src/eed_report/handler.py (see README)."
+  type        = string
+
+  validation {
+    condition     = endswith(var.package_path, ".zip")
+    error_message = "package_path must point to a .zip file."
+  }
+}
+
+variable "datacentre_factors" {
+  description = "AWS-published PUE and WUE (L/kWh) per region code, with the page they come from. Regions missing here are reported with null factors."
+  type = map(object({
+    pue        = number
+    wue        = number
+    source_url = string
+  }))
+
+  validation {
+    condition     = alltrue([for f in values(var.datacentre_factors) : f.pue >= 1 && f.wue >= 0 && startswith(f.source_url, "https://")])
+    error_message = "Each factor needs pue >= 1, wue >= 0 and an https source_url."
+  }
+}
+
+variable "report_lag_months" {
+  description = "How many months back the scheduled run reports; CCFT data for a month arrives after it ends."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.report_lag_months >= 1 && var.report_lag_months <= 6
+    error_message = "report_lag_months must be 1 to 6."
+  }
+}
+
+variable "report_schedule" {
+  description = "EventBridge Scheduler expression (UTC) for the monthly report."
+  type        = string
+  default     = "cron(0 6 25 * ? *)"
+}

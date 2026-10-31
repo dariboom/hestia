@@ -83,6 +83,7 @@ module "exports_key" {
   tags                = var.tags
   allowed_account_ids = var.allowed_account_ids
   admin_role_arns     = var.key_admin_role_arns
+  usage_role_arns     = [aws_iam_role.eed_report.arn]
   service_principals  = [{ service = "bcm-data-exports.amazonaws.com", source_arn_like = local.export_arns }]
 }
 
